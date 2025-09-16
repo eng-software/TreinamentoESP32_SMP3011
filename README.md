@@ -10,7 +10,7 @@ O **SMP3011** é um **sensor de pressão** que se comunica via protocolo **I²C*
 
 ---
 
-## 🧮 Conversão da leitura do ADC  
+## 🧮 Conversão da leitura do ADC (Pressão)  
 
 Um conversor de **24 bits** entrega valores entre **0** e **16.777.216**  
 \[(2^{24})\].  
@@ -22,12 +22,12 @@ Para converter o valor lido em percentual:
 
 **Fórmula:**  
 ```
-PercentualAD = ValorAD / 16777216
+PercentualAD = ValorAD / 16777215
 ```
 
 ---
 
-## 📊 Faixa útil de leitura  
+## 📊 Faixa útil de leitura (Pressão)  
 
 O sensor não utiliza toda a escala de 0% a 100%.  
 Ele entrega uma faixa de **15% a 85%**, correspondendo a:  
@@ -37,7 +37,7 @@ Ele entrega uma faixa de **15% a 85%**, correspondendo a:
 
 ---
 
-## ✏️ Montando a equação (regressão linear)  
+## ✏️ Montando a equação (regressão linear da pressão)  
 
 Usamos a equação de 1º grau:  
 
@@ -55,7 +55,7 @@ Onde:
 
 ---
 
-## 🔍 Resolvendo o sistema  
+## 🔍 Resolvendo o sistema (Pressão)  
 
 1. De (1):  
 ```
@@ -86,7 +86,141 @@ Pressão(PercentualAD) = (Range * (PercentualAD - 15%)) / 70%
 
 ---
 
-👉 Assim, a **pressão medida pelo sensor** é obtida a partir do valor do ADC convertido em percentual, corrigido pela faixa de 15% a 85% da saída do dispositivo.  
+## 🌡️ Leitura de Temperatura  
+
+Para obter a leitura de **temperatura**, o processo é semelhante, porém o **range é fixo**:  
+
+- **Faixa de medição:** `-40 °C até +150 °C`  
+- **Conversor ADC:** 16 bits (máx. 65.536 valores possíveis)  
+
+### Passos:  
+
+1. Converter a leitura bruta em percentual:  
+```
+PercentualADTemp = ValorADTemp / 65535
+```
+
+2. Aplicar a faixa de temperatura:  
+```
+Temperatura = ((150.0 - (-40.0)) * PercentualADTemp) - 40.0
+```
+
+Ou simplificando:  
+```
+Temperatura = (190.0 * PercentualADTemp) - 40.0
+```
+
+---
+
+👉 Assim, o SMP3011 fornece tanto **pressão** (com faixa ajustada de 15% a 85%) quanto **temperatura** (em -40 °C a +150 °C) a partir dos valores lidos pelos conversores ADC.  
+
+## Leitura do sensor
+
+O endereço do sensor é o 0x78  
+O processo de leitura do sensor é:
+   - Escrever 0xAC para iniciar o processo de conversão da pressão e temperatura
+   - Ler 6 bytes do sendor
+   - Verificar se o bit de busy (bit 5 do byte[0]) esta em zero
+   - Se o busy em zero, separar os bytes 1, 2 e 3 para represesntar a pressão e os bytes 4 e 5 a temperatura
+   - Transformar as leituras em float de percentual do AD da pressão e temperatura
+   - Converter para Pa e °C
+   - Escrever 0xAC para iniciar o processo de conversão da pressão e temperatura e repetir o processo
+
+### Converter as leituras para float:
+Para organizar os valores, considerando que a pressão é 24bits ou seja, 3 bytes, precisamos agrupar esses bytes para formar uma variável de 32bits.
+
+
+
+## 📖 Leitura do sensor SMP3011  
+
+O endereço I²C do sensor é **0x78**.  
+
+### 🔄 Processo de leitura  
+1. **Escrever `0xAC`** para iniciar o processo de conversão da pressão e temperatura.  
+2. **Ler 6 bytes** do sensor.  
+3. **Verificar o bit de busy**:  
+   - O **bit 5** do `byte[0]` indica se o sensor ainda está processando.  
+   - Quando o **busy = 0**, os dados estão prontos.  
+4. **Separar os dados**:  
+   - **Pressão** → bytes **[1], [2], [3]** (24 bits)  
+   - **Temperatura** → bytes **[4], [5]** (16 bits)  
+5. **Converter para float**:  
+   - Transformar os valores lidos em **percentual do ADC**.  
+   - Aplicar as fórmulas para obter **Pa** (pressão) e **°C** (temperatura).  
+6. **Reiniciar o processo**:  
+   - Escrever `0xAC` novamente para iniciar nova conversão.  
+
+---
+
+## ⚙️ Conversão dos bytes em valores  
+
+### 🔢 Pressão (24 bits)  
+A pressão é representada em **3 bytes (24 bits)**. Para manipular esses valores em código, normalmente agrupamos em um **inteiro de 32 bits**.
+
+Seja o buffer de leitura:  
+```
+byte[1], byte[2], byte[3]
+```
+
+Podemos montar o valor de 24 bits assim:  
+
+```c
+uint32_t rawPressure = ((uint32_t)byte[1] << 16) |
+                       ((uint32_t)byte[2] << 8)  |
+                       (uint32_t)byte[3];
+```
+
+### 🔢 Temperatura (16 bits)  
+A temperatura vem em **2 bytes (16 bits)**:  
+```
+byte[4], byte[5]
+```
+
+Conversão:  
+
+```c
+uint16_t rawTemp = ((uint16_t)byte[4] << 8) |
+                   (uint16_t)byte[5];
+```
+
+---
+
+## 📌 O que é Shift?  
+
+**Shift** é a operação de **deslocar os bits de um número para a esquerda ou para a direita**.  
+
+- `<<` → **shift para a esquerda**: desloca os bits, multiplicando o número por potências de 2.  
+- `>>` → **shift para a direita**: desloca os bits, dividindo o número por potências de 2.  
+
+Exemplo:  
+
+```
+00000001 (1 decimal)
+<< 8
+00000001 00000000 (256 decimal)
+```
+
+---
+
+## 🧩 Explicação do agrupamento (Pressão 24 bits)  
+
+Queremos que:  
+- `byte[1]` → ocupe os bits **23 a 16**  
+- `byte[2]` → ocupe os bits **15 a 8**  
+- `byte[3]` → ocupe os bits **7 a 0**  
+
+Isso é feito com **shifts**:  
+
+1. `byte[1] << 16` → desloca `byte[1]` para ficar nos bits 23–16.  
+2. `byte[2] << 8` → desloca `byte[2]` para os bits 15–8.  
+3. `byte[3]` → já está nos bits 7–0.  
+
+Somando com **OR bit a bit (`|`)**, obtemos o valor completo de 24 bits.  
+
+---
+
+👉 Dessa forma, a leitura do sensor é organizada em variáveis inteiras que depois podem ser convertidas em **percentual do ADC** e, por fim, em **Pa** e **°C**.  
+
 
 
 ## 📦 Pré-requisitos
