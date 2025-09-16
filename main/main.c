@@ -105,8 +105,9 @@ void smp3011Poll()
 
     if((PressSensorBuffer[0]&0x20) == 0)   //Bit5 do status está em 0 significa que a conversão está pronta
     {              
-        //printf("Raw Data: %02X %02X %02X %02X %02X %02X\n", PressSensorBuffer[0], PressSensorBuffer[1], PressSensorBuffer[2], PressSensorBuffer[3], PressSensorBuffer[4], PressSensorBuffer[5]);
+        printf("Raw Data: %02X %02X %02X %02X %02X %02X\n", PressSensorBuffer[0], PressSensorBuffer[1], PressSensorBuffer[2], PressSensorBuffer[3], PressSensorBuffer[4], PressSensorBuffer[5]);
 
+        /*
         uint8_t PressSensorCommand = 0xAC;  //Comando para iniciar conversor ADC
         i2c_master_transmit(i2c_smp3011_handle, (uint8_t *)(&PressSensorCommand), 1, 20);            
 
@@ -122,6 +123,7 @@ void smp3011Poll()
 
 
         printf("Pressure: %f  Temperature: %f \n", pressurePercentage, temperaturePercentage);
+        */
         
     }
 }
